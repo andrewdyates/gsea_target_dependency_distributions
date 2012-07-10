@@ -35,7 +35,7 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
     row = line.split('\t')
     m = RX_SYM.match(clean(row[0]))  # note: clean name before passing to rx
     if not m:
-      print "??", m
+      print "??", row[0]
       continue
     gene, target_group = m.groups()
     print gene, target_group
