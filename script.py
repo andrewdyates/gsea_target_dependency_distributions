@@ -33,11 +33,10 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
   gsea_gene_set = set()
   for line in open(gsea_fname):
     row = line.split('\t')
-    m = RX_SYM.match(clean(row[0]))  # note: clean name before passing to rx
+    m = RX_SYM.match(row[0])
     if not m:
-      print "??", row[0]
       continue
-    gene, target_group = m.groups()
+    gene, target_group = clean(m.group(1)), m.group(2)
     print gene, target_group
     d = targets.setdefault('gene', {})
     d[target_group] = map(clean, row[2:]) 
