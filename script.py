@@ -51,8 +51,8 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
     print "Loading %s..." % dep_name
     M = np.load(os.path.join(d['dir'], d['values_file']))
     B = np.load(os.path.join(d['dir'], d['bool_file']))
-    D["dependencies"]['Q'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
-    D["dependencies"]['Q_Mask'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=B)
+    d['Q'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
+    d['Q_Mask'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=B)
 
 
   for gsea_gene in GENE_LIST:
