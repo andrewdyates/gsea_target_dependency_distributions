@@ -6,13 +6,11 @@ python $HOME/gsea_target_dependency_distributions/script.py gsea_fname=$HOME/gse
 WARNING: THIS IS VERY INEFFICIENT: USE INDEXED ADJ MATRICES
 """
 import json
-import random
 import os
 import sys
 from util import *
 from py_symmetric_matrix import *
 import numpy as np
-import itertools
 import matplotlib 
 matplotlib.use('agg') # required for use on OSC servers
 import matplotlib.pyplot as plt
@@ -20,96 +18,81 @@ import matplotlib.pyplot as plt
 
 # per Dr. Kun
 GENE_LIST = ["E2F1", "ETS2", "ESR1"]
+RX_SYM = re.compile("[^$]*\$([^_]+)_(.*)") # (gene name, target id)
 
 
 def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
   assert gsea_fname and dependency_json and tabfile and outdir
 
+  # Load list of variables in study data file.
   varlist = []
   for row in name_iter(open(tabfile), varlist): pass
   cleaned_varlist = [clean(s) for s in varlist]
+  cleaned_varset = set(cleaned_varlist) # for lookups
 
-  # first get names
-  fp = open(gsea_fname)
-  gsea_list = set()
-  for line in fp:
-    row = line.strip('\n').split('\t')
-    for name in row[2:]:
-      gsea_list.add(clean(name))
-  fp.close()
+  # Load targets from gsea file
+  targets = {} # {gene: {id: set(genes)}}
+  gsea_gene_set = set()
+  for line in open(gsea_fname):
+    row = line.split('\t')
+    m = RX_SYM.match(clean(row[0]))  # note: clean name before passing to rx
+    if not m:
+      continue
+    gene, target_group = m.groups()
+    d = targets.setdefault('gene', {})
+    d[target_group] = map(clean, row[2:]) 
+    gsea_gene_set.add(gene)
 
-  shared_genes = gsea_list & set(cleaned_varlist)
-  shared_genes_list = list(shared_genes)
-  print "Num genes in GSEA list", len(gsea_list)
-  print "Num genes in Tab file", len(cleaned_varlist)
-  print "Num of intersecting genes", len(shared_genes)
+  shared_set = cleaned_varset - gsea_gene_set
 
-  # load pairs into graph
-  if os.path.exists("%s.B.npy" % gsea_fname):
-    print "Loading '%s.B.npy'" % gsea_fname
-    cached = np.load("%s.B.npy" % gsea_fname)
-  else:
-    cached = None
-  B = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=shared_genes_list, matrix=cached)
-
-  if cached is None:
-    fp = open(gsea_fname)
-    n_set = 0
-    n_dupe = 0
-    for line in fp:
-      row = set([clean(s) for s in line.strip('\n').split('\t')[2:]])
-      row = row & shared_genes
-      for x, y in itertools.combinations(row, 2):
-        if not B.get(x,y):
-          B.set(x,y,1)
-          n_set += 1
-        else:
-          n_dupe += 1
-    print "Set %d interactions (%d dupes)" % (n_set, n_dupe)
-    np.save("%s.B.npy" % gsea_fname, B._m)
-    print "Saved '%s.B.npy' % gsea_fname to file"
-
-  # load a dependency matrix
   D = json.load(open(dependency_json))
-  for dep_name, d in D["dependencies"].items():
-    #if dep_name != 'pcc': continue # hack for now
+  for gsea_gene in GENE_LIST:
 
-    M = np.load(os.path.join(d['dir'], d['values_file']))
-    Mask = np.load(os.path.join(d['dir'], d['bool_file']))
+    for dep_name, d in D["dependencies"].items():
+      M = np.load(os.path.join(d['dir'], d['values_file']))
+      B = np.load(os.path.join(d['dir'], d['bool_file']))
+      Q = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
+      Q_Mask = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=B)
 
-    Q = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
-    Q_Mask = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=M)
+    # Get all other scores
+    all_scores = np.zeros(len(cleaned_varlist))
+    for i, q in enumerate(cleaned_varset):
+      if q != gsea_gene and Q_Mask.get(gsea_gene, q):
+        all_scores[i] = Q.get(gsea_gene, q)
 
-    for gene in GENE_LIST:
-      interact_scores = []
-      random_scores = []
-      sample_scores = []
-      for other in shared_genes_list:
-        if other != gene and B.get(gene, other) and Q_Mask.get(gene, other):
-          interact_scores.append(Q.get(gene,other))
-      n = len(interact_scores)
-      # random
-      for other in random.sample(shared_genes_list, n):
-        if other != gene and Q_Mask.get(gene, other):
-          random_scores.append(Q.get(gene,other))
-      # sample
-      for other in random.sample(cleaned_varlist, 1000):
-        if other != gene and Q_Mask.get(gene, other):
-          sample_scores.append(Q.get(gene,other))
+    # Get per-target-set scores
+    for target_set_name, target_list in targets[gsea_gene].items():
+      shared_targets = shared_set - set(target_list)
+      idxs = [Q.get_idx(q, gsea_gene) for q in shared_targets if Q_Mask.get(q, gsea_gene)]
+      target_scores = all_scores.take(idxs)
 
-      print "Scores for %s." % gene
-      print "%d interactions. %d random from intersecting gene list. Missing values skipped." % (len(interact_scores),len(random_scores))
-      print "%d samples of %d from dependency matrix." % (len(sample_scores), len(cleaned_varlist))
-      print "interact:", np.mean(interact_scores), np.std(interact_scores), np.max(interact_scores)
-      print "random:", np.mean(random_scores), np.std(random_scores), np.max(random_scores)
-      print "sample:", np.mean(sample_scores), np.std(sample_scores), np.max(sample_scores)
+      print "Scores for %s, set %s." % (gsea_gene, target_set_name)
+      
+      print "%d target interactions. %d targets in study considered." % (len(target_list), len(shared_targets))
+      print "targets only: ", compile_stats(target_scores)
+      print "all genes: ", compile_stats(all_scores)
 
       # BOXPLOTS
+      id_set = (gsea_gene, target_set_name, dep_name)
       plt.clf(); plt.cla()
-      plt.boxplot((interact_scores, random_scores, sample_scores))
-      plt.savefig(os.path.join(outdir,"%s_%s_gse2034_boxplot.png" % (gene, dep_name)))
+      plt.boxplot((target_scores, all_scores))
+      plt.title(" ".join(id_set) + " targets vs all")
+      fname = os.path.join(outdir,"%s.png" % "_".join(id_set))
+      plt.savefig(fname)
+      print "saved boxplot %s" % fname
+      print "target scores: ", target_scores
+      print "first 20 all scores: ", all_scores[:20]
+      print 
     
 
-  
+
+def compile_stats(a):
+  return {
+    'mean': np.mean(a),
+    'std': np.std(a),
+    'min': np.min(a),
+    'max': np.max(a),
+    }
+      
 if __name__ == "__main__":
   main(**dict([s.split("=") for s in sys.argv[1:]])) 
