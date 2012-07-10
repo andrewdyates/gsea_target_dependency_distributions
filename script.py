@@ -37,7 +37,6 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
     if not m:
       continue
     gene, target_group = clean(m.group(1)), m.group(2)
-    print gene, target_group
     d = targets.setdefault(gene, {})
     d[target_group] = map(clean, row[2:]) 
     gsea_gene_set.add(gene)
@@ -49,6 +48,7 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
   # Load dependencies
   D = json.load(open(dependency_json))
   for dep_name, d in D["dependencies"].items():
+    if dep_name != "spearman2": continue # HAKC!
     print "Loading %s..." % dep_name
     M = np.load(os.path.join(d['dir'], d['values_file']))
     B = np.load(os.path.join(d['dir'], d['bool_file']))
@@ -76,6 +76,19 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
         shared_targets = shared_set - set(target_list+[gsea_gene])
         idxs = [Q.get_idx(q, gsea_gene) for q in shared_targets if Q_Mask.get(q, gsea_gene)]
         target_scores = all_scores.take(idxs)
+        print idxs[:10]
+        print target_scores[0]
+        sys.exit(1)
+
+        # HACK!
+        print dep_name
+        print all_scores
+        print compile_stats(all_scores)
+        print target_scores
+        print compile_stats(target_scores)
+        sys.exit(1)
+          
+
   
         print "Scores for %s, set %s." % (gsea_gene, target_set_name)
         
