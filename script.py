@@ -57,6 +57,11 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
 
 
   for gsea_gene in GENE_LIST:
+
+    if gsea_gene not in shared_set:
+      print "WARNING: gsea_gene not in shared set! Skipping..."
+      continue
+
     for dep_name, d in D["dependencies"].items():
       Q, Q_Mask = d['Q'], d['Q_Mask']
 
