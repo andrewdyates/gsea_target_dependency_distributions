@@ -38,12 +38,13 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
       continue
     gene, target_group = clean(m.group(1)), m.group(2)
     print gene, target_group
-    d = targets.setdefault('gene', {})
+    d = targets.setdefault(gene, {})
     d[target_group] = map(clean, row[2:]) 
     gsea_gene_set.add(gene)
 
   shared_set = cleaned_varset & gsea_gene_set
   print "Loaded %d genes with targets, %d of these in study." % (len(gsea_gene_set), len(shared_set))
+  print "%d Targets available." % len(targets)
 
   # Load dependencies
   D = json.load(open(dependency_json))
