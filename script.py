@@ -73,7 +73,7 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
 
       # Get per-target-set scores
       for target_set_name, target_list in targets[gsea_gene].items():
-        shared_targets = shared_set - set(target_list)
+        shared_targets = shared_set - set(target_list+[gsea_gene])
         idxs = [Q.get_idx(q, gsea_gene) for q in shared_targets if Q_Mask.get(q, gsea_gene)]
         target_scores = all_scores.take(idxs)
   
