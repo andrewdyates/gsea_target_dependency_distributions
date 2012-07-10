@@ -44,45 +44,51 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
     gsea_gene_set.add(gene)
 
   shared_set = cleaned_varset - gsea_gene_set
+  print "Loaded %d genes with targets, %d of these in study." % (len(gsea_gene_set), len(shared_set))
 
+  # Load dependencies
   D = json.load(open(dependency_json))
+  for dep_name, d in D["dependencies"].items():
+    print "Loading %s..." % dep_name
+    M = np.load(os.path.join(d['dir'], d['values_file']))
+    B = np.load(os.path.join(d['dir'], d['bool_file']))
+    D["dependencies"]['Q'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
+    D["dependencies"]['Q_Mask'] = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=B)
+
+
   for gsea_gene in GENE_LIST:
-
     for dep_name, d in D["dependencies"].items():
-      M = np.load(os.path.join(d['dir'], d['values_file']))
-      B = np.load(os.path.join(d['dir'], d['bool_file']))
-      Q = NamedSymmetricMatrix(store_diagonal=False, dtype=np.float, var_list=cleaned_varlist, matrix=M)
-      Q_Mask = NamedSymmetricMatrix(store_diagonal=False, dtype=np.bool, var_list=cleaned_varlist, matrix=B)
+      Q, Q_Mask = d['Q'], d['Q_Mask']
 
-    # Get all other scores
-    all_scores = np.zeros(len(cleaned_varlist))
-    for i, q in enumerate(cleaned_varset):
-      if q != gsea_gene and Q_Mask.get(gsea_gene, q):
-        all_scores[i] = Q.get(gsea_gene, q)
+      # Get all other scores
+      all_scores = np.zeros(len(cleaned_varlist))
+      for i, q in enumerate(cleaned_varset):
+        if q != gsea_gene and Q_Mask.get(gsea_gene, q):
+          all_scores[i] = Q.get(gsea_gene, q)
 
-    # Get per-target-set scores
-    for target_set_name, target_list in targets[gsea_gene].items():
-      shared_targets = shared_set - set(target_list)
-      idxs = [Q.get_idx(q, gsea_gene) for q in shared_targets if Q_Mask.get(q, gsea_gene)]
-      target_scores = all_scores.take(idxs)
-
-      print "Scores for %s, set %s." % (gsea_gene, target_set_name)
-      
-      print "%d target interactions. %d targets in study considered." % (len(target_list), len(shared_targets))
-      print "targets only: ", compile_stats(target_scores)
-      print "all genes: ", compile_stats(all_scores)
-
-      # BOXPLOTS
-      id_set = (gsea_gene, target_set_name, dep_name)
-      plt.clf(); plt.cla()
-      plt.boxplot((target_scores, all_scores))
-      plt.title(" ".join(id_set) + " targets vs all")
-      fname = os.path.join(outdir,"%s.png" % "_".join(id_set))
-      plt.savefig(fname)
-      print "saved boxplot %s" % fname
-      print "target scores: ", target_scores
-      print "first 20 all scores: ", all_scores[:20]
-      print 
+      # Get per-target-set scores
+      for target_set_name, target_list in targets[gsea_gene].items():
+        shared_targets = shared_set - set(target_list)
+        idxs = [Q.get_idx(q, gsea_gene) for q in shared_targets if Q_Mask.get(q, gsea_gene)]
+        target_scores = all_scores.take(idxs)
+  
+        print "Scores for %s, set %s." % (gsea_gene, target_set_name)
+        
+        print "%d target interactions. %d targets in study considered." % (len(target_list), len(shared_targets))
+        print "targets only: ", compile_stats(target_scores)
+        print "all genes: ", compile_stats(all_scores)
+  
+        # BOXPLOTS
+        id_set = (gsea_gene, target_set_name, dep_name)
+        plt.clf(); plt.cla()
+        plt.boxplot((target_scores, all_scores))
+        plt.title(" ".join(id_set) + " targets vs all")
+        fname = os.path.join(outdir,"%s.png" % "_".join(id_set))
+        plt.savefig(fname)
+        print "saved boxplot %s" % fname
+        print "target scores: ", target_scores
+        print "first 20 all scores: ", all_scores[:20]
+        print 
     
 
 
