@@ -2,8 +2,6 @@
 """Print boxplots of co-occurences in targets file.
 
 python $HOME/gsea_target_dependency_distributions/script.py gsea_fname=$HOME/gsea_target_dependency_distributions/c3.tft.v3.0.symbols.gmt dependency_json=$HOME/gse2034/gse2034_promising.json tabfile=$HOME/gse2034/GSE2034.GPL96.eQTL.normed.tab outdir=$HOME/gse2034/gsea_boxplots
-
-WARNING: THIS IS VERY INEFFICIENT: USE INDEXED ADJ MATRICES
 """
 import json
 import os
@@ -43,7 +41,7 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None):
     d[target_group] = map(clean, row[2:]) 
     gsea_gene_set.add(gene)
 
-  shared_set = cleaned_varset - gsea_gene_set
+  shared_set = cleaned_varset & gsea_gene_set
   print "Loaded %d genes with targets, %d of these in study." % (len(gsea_gene_set), len(shared_set))
 
   # Load dependencies
