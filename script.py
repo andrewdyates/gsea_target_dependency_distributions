@@ -105,7 +105,7 @@ def main(gsea_fname=None, dependency_json=None, tabfile=None, outdir=None, list_
         id_set = (gene, target_set_name, dep_name)
         plt.clf(); plt.cla()
         plt.boxplot((target_scores, all_scores))
-        plt.title(" ".join(id_set) + " targets vs all %.6f" % ptest[1]*100)
+        plt.title(" ".join(id_set) + " targets vs all %.6f" % (ptest[1]*100))
         fname = os.path.join(outdir,"%s.png" % ("_".join(id_set)))
         plt.savefig(fname)
         R[gene][dep_name]['plot_fname'] = fname
